@@ -6,6 +6,8 @@ FreshCart is a MERN npm-workspaces monorepo with an Express/Mongoose API, a mobi
 
 **Portfolio:** [case study, screenshots, verified test evidence, and listing copy](docs/PORTFOLIO.md). **Maintenance:** [ownership boundaries, contributor workflow, scaling roadmap, and operations](docs/MAINTAINABILITY.md).
 
+**Published portfolio case study:** https://solan-portfolio.vercel.app/case-study/freshcart. This is the project presentation, not a live shopping deployment.
+
 **Release automation:** [GitHub Actions quality checks](.github/workflows/ci.yml) and [Render API blueprint](render.yaml). Run `npm ci`, install Chromium with `npx playwright install chromium`, then run `npm run validate` for the complete local gate. Cloud deployment and live provider verification are separate requirements.
 
 ## Shared UI Theme

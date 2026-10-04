@@ -4,6 +4,8 @@
 
 **Portfolio repository:** https://github.com/solenova0/solan-portfolio
 
+**Published case study:** https://solan-portfolio.vercel.app/case-study/freshcart
+
 ## Project Summary
 
 FreshCart is a full-stack commerce application with a React storefront, separate role-gated React administration app, and an Express/Mongoose API. It brings catalog discovery, verified accounts, cart and address management, cash-on-delivery orders, and Stripe Checkout into one npm-workspaces repository.

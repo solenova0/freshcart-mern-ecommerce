@@ -1,6 +1,13 @@
 # Deployment: Atlas, Render, and Vercel
 
-Use Stripe test mode first. This guide describes deployment; no cloud account or live payment deployment was performed by the coding assistant. Read [the security review](SECURITY.md) before a public launch.
+Use Stripe test mode first. This guide describes deployment, not a claim of live payment verification. Read [the security review](SECURITY.md) before a public launch.
+
+## Release Status: October 4, 2026
+
+- GitHub repository is published and its first quality workflow passed.
+- The [portfolio case study](https://solan-portfolio.vercel.app/case-study/freshcart) is published separately from the shop.
+- Vercel projects `freshcart-storefront` and `freshcart-admin` are created with Node 24, workspace root directories, and parent-source inclusion. No commerce production deployment has been made; both need the configured public API URL.
+- Render/Atlas/Brevo/Cloudinary setup and live integration verification are pending owner-side credential configuration. Enter secrets directly in provider dashboards, never in chat or Git.
 
 ## Repository and Release Automation
 
