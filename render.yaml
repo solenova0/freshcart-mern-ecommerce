@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: freshcart-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_TTL_SECONDS
+        value: '86400'
+      - key: COOKIE_SAME_SITE
+        value: none
+      - key: TRUST_PROXY
+        value: '1'
+      - key: VERIFICATION_TOKEN_TTL_MINUTES
+        value: '60'
+      - key: BREVO_SENDER_NAME
+        value: FreshCart
+      - key: CLOUDINARY_FOLDER
+        value: freshcart-production
+      - key: MONGODB_URI
+        sync: false
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: STOREFRONT_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

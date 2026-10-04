@@ -1,0 +1,16 @@
+{
+  "name": "@freshcart/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/components.jsx",
+    "./theme.css": "./theme.css",
+    "./tailwind.config": "./tailwind.config.js"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/plus-jakarta-sans": "^5.2.8"
+  },
+  "peerDependencies": { "react": "^19.0.0", "lucide-react": "*", "react-hot-toast": "^2.6.0" }
+}

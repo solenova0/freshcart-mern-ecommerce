@@ -1,0 +1,19 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowRight, Leaf, Trash2 } from 'lucide-react'
+import { Button, EmptyState, Modal } from '@freshcart/design-system'
+import { api } from '../lib/api.js'
+import { money, useAuth } from '../lib/auth.js'
+import { QuantityStepper, QueryState, Totals } from './ui.jsx'
+
+export default function CartContents({ compact = false, onNavigate }) {
+  const auth = useAuth()
+  const [confirm, setConfirm] = useState(false)
+  const client = useQueryClient()
+  const query = useQuery({ queryKey: ['cart'], queryFn: async () => (await api.get('/cart')).data.cart, enabled: Boolean(auth.user) })
+  const mutation = useMutation({ mutationFn: ({ method, path, data }) => api({ method, url: path, data }), onSuccess: () => { client.invalidateQueries({ queryKey: ['cart'] }); setConfirm(false) } })
+  const cart = query.data
+  if (!auth.user) return <EmptyState title="Your basket starts here" message="Sign in to save your fresh finds." action={<Link to="/login" className="btn" onClick={onNavigate}>Sign in</Link>} />
+  return <><QueryState query={query} empty={cart?.items.length === 0} message="Your basket is waiting for something good." />{cart?.items.length > 0 ? <div className={compact ? 'cart-layout compact' : 'cart-layout'}><div>{cart.items.map((item) => <article key={item.productId} className="cart-row"><div className="cart-image">{item.product?.images[0] ? <img src={item.product.images[0]} alt={item.product.name} /> : <Leaf size={24} />}</div><div className="cart-item-copy"><Link to={`/products/${item.productId}`} onClick={onNavigate}>{item.product?.name || 'Product no longer available'}</Link><p className="muted">{item.product ? money(item.product.price) : 'Unavailable'}</p>{!item.available && <p className="field-error">Quantity or product unavailable</p>}<QuantityStepper name={item.product?.name || 'item'} value={item.quantity} maximum={Math.min(999, (item.product?.stock || 0) - (item.product?.reservedStock || 0))} disabled={mutation.isPending || !item.product} onChange={(quantity) => mutation.mutate({ method: 'patch', path: `/cart/items/${item.productId}`, data: { quantity } })} /></div><div className="cart-item-end"><strong className="price">{money(item.lineTotal)}</strong><button className="icon-btn" title="Remove item" aria-label={`Remove ${item.product?.name || 'item'}`} disabled={mutation.isPending} onClick={() => mutation.mutate({ method: 'delete', path: `/cart/items/${item.productId}` })}><Trash2 size={18} /></button></div></article>)}<Button variant="ghost" className="mt-4" disabled={mutation.isPending} onClick={() => setConfirm(true)}>Clear basket</Button></div><aside className="summary"><h2>Basket total</h2><Totals subtotal={cart.total} /><Link to="/checkout" className="btn accent w-full" onClick={onNavigate}>Checkout<ArrowRight size={18} /></Link>{compact ? <Link to="/cart" className="text-link mt-4" onClick={onNavigate}>View full basket</Link> : <Link to="/shop" className="text-link mt-4">Continue shopping</Link>}</aside></div> : query.data && <Link to="/shop" className="btn" onClick={onNavigate}>Shop the market</Link>}{confirm && <Modal title="Clear your basket?" onClose={() => setConfirm(false)}><p className="muted mb-6">All items will be removed from your basket.</p><div className="flex gap-4"><Button variant="ghost" onClick={() => setConfirm(false)}>Keep items</Button><Button variant="accent" loading={mutation.isPending} onClick={() => mutation.mutate({ method: 'delete', path: '/cart' })}>Clear basket</Button></div></Modal>}</>
+}

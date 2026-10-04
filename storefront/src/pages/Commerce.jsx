@@ -1,0 +1,49 @@
+import { createElement, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowRight, Check, CreditCard, Truck } from 'lucide-react'
+import { Badge, Button, Input, Modal } from '@freshcart/design-system'
+import toast from 'react-hot-toast'
+import { z } from 'zod'
+import { api, errorMessage } from '../lib/api.js'
+import { money, useAuth } from '../lib/auth.js'
+import { Pagination, QueryState, Totals } from '../components/ui.jsx'
+
+const addressSchema = z.object({ fullName: z.string().trim().min(1, 'Enter your full name').max(100), line1: z.string().trim().min(1, 'Enter your street address').max(200), city: z.string().trim().min(1, 'Enter your city').max(100), country: z.string().trim().min(1, 'Enter your country').max(100), phone: z.string().trim().max(30), line2: z.string().trim().max(200), state: z.string().trim().max(100), postalCode: z.string().trim().max(30) })
+
+export function Checkout() {
+  const { user, refresh } = useAuth()
+  const navigate = useNavigate()
+  const client = useQueryClient()
+  const [method, setMethod] = useState('cod')
+  const [errors, setErrors] = useState({})
+  const query = useQuery({ queryKey: ['cart'], queryFn: async () => (await api.get('/cart')).data.cart })
+  const submit = useMutation({ mutationFn: async (address) => {
+    await api.put('/users/me/address', address)
+    const { data } = await api.post('/orders', { address, paymentMethod: method })
+    if (method === 'stripe') { try { return (await api.post(`/orders/${data.order._id}/checkout-session`)).data } catch { toast.error('Order saved. Resume card payment from your orders.'); return {} } }
+    return {}
+  }, onSuccess: async (result) => { await client.invalidateQueries({ queryKey: ['cart'] }); await client.invalidateQueries({ queryKey: ['orders'] }); refresh(); if (result.url && new URL(result.url).origin === 'https://checkout.stripe.com') window.location.assign(result.url); else { toast.success('Order placed'); navigate('/orders') } } })
+  const cart = query.data
+  const fields = [['fullName', 'Full name', 'name'], ['phone', 'Phone', 'tel'], ['line1', 'Street address', 'address-line1'], ['line2', 'Apartment / unit', 'address-line2'], ['city', 'City', 'address-level2'], ['state', 'Region', 'address-level1'], ['postalCode', 'Postal code', 'postal-code'], ['country', 'Country', 'country-name']]
+  return <div className="page section-band"><p className="eyebrow">ALMOST AT YOUR DOOR</p><h1 className="page-heading mb-8">Checkout</h1><QueryState query={query} empty={cart?.items.length === 0} message="Your basket is empty." />{cart?.items.length > 0 && <form className="checkout-layout" noValidate onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); data.delete('payment-choice'); const parsed = addressSchema.safeParse(Object.fromEntries(data)); if (!parsed.success) { setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [issue.path[0], issue.message]))); event.currentTarget.querySelector(`[name="${parsed.error.issues[0].path[0]}"]`)?.focus(); return } setErrors({}); submit.mutate(parsed.data) }}><div><section className="checkout-block"><div className="block-heading"><span className="block-number">1</span><h2>Delivery address</h2></div><div className="form-grid">{fields.map(([name, label, autocomplete]) => <Input key={name} label={label} name={name} autoComplete={autocomplete} error={errors[name]} required={['fullName', 'line1', 'city', 'country'].includes(name)} maxLength={name.startsWith('line') ? 200 : ['phone', 'postalCode'].includes(name) ? 30 : 100} defaultValue={user.address?.[name] || ''} />)}</div></section><section className="checkout-block"><div className="block-heading"><span className="block-number">2</span><h2>Payment method</h2></div><div className="payment-options">{[['cod', 'Cash on delivery', Truck], ['stripe', 'Card with Stripe', CreditCard]].map(([value, label, icon]) => <label key={value} className={`payment-option ${method === value ? 'selected' : ''}`}><input type="radio" name="payment-choice" value={value} checked={method === value} onChange={() => setMethod(value)} />{createElement(icon, { size: 22 })}<span>{label}</span></label>)}</div></section></div><aside className="summary"><div className="block-heading"><span className="block-number">3</span><h2>Order summary</h2></div>{cart.items.map((item) => <p className="flex justify-between gap-4 text-sm py-4 border-b border-border" key={item.productId}><span>{item.quantity} × {item.product?.name || 'Unavailable'}</span><strong>{money(item.lineTotal)}</strong></p>)}<Totals subtotal={cart.total} />{submit.isError && <p className="field-error mb-4" role="alert">{errorMessage(submit.error)}</p>}<Button type="submit" variant="accent" className="w-full" loading={submit.isPending} disabled={cart.items.some((item) => !item.available)}>{method === 'stripe' ? 'Continue to Stripe' : 'Place order'}<ArrowRight size={18} /></Button></aside></form>}</div>
+}
+
+export function OrderTimeline({ order }) {
+  const steps = [['pending', 'Placed'], ['confirmed', 'Confirmed'], ['shipped', 'Out for delivery'], ['delivered', 'Delivered']]
+  const position = { pending: 0, confirmed: 1, processing: 1, shipped: 2, delivered: 3, cancelled: -1 }[order.orderStatus]
+  return <ol className="order-timeline" aria-label="Order tracking">{steps.map(([status, label], index) => {
+    const at = index === 0 ? order.createdAt : order.statusHistory?.find((entry) => entry.status === status)?.at
+    const done = index === 0 || index <= position
+    return <li key={status} className={done ? 'done' : ''}><span className="timeline-dot">{done && <Check size={14} />}</span><div><strong className="text-sm">{label}</strong><p>{at ? <time dateTime={at}>{new Date(at).toLocaleString()}</time> : done ? 'Time not recorded' : 'Upcoming'}</p></div></li>
+  })}{order.orderStatus === 'cancelled' && <li><span className="timeline-dot">×</span><div><Badge status="cancelled" /><p>{order.statusHistory?.find((entry) => entry.status === 'cancelled')?.at ? new Date(order.statusHistory.find((entry) => entry.status === 'cancelled').at).toLocaleString() : 'Time not recorded'}</p></div></li>}</ol>
+}
+
+export function Orders() {
+  const [params, setParams] = useSearchParams()
+  const [cancel, setCancel] = useState(null)
+  const client = useQueryClient()
+  const query = useQuery({ queryKey: ['orders', params.get('page') || '1'], queryFn: async () => (await api.get('/orders/history', { params: { page: params.get('page') || '1', limit: 10 } })).data, refetchInterval: (current) => current.state.data?.orders.some((order) => order.paymentMethod === 'stripe' && order.paymentStatus === 'pending') ? 10000 : false })
+  const action = useMutation({ mutationFn: async ({ id, cancel }) => (await api.post(`/orders/${id}/${cancel ? 'cancel-payment' : 'checkout-session'}`)).data, onSuccess: (data) => { if (data.url && new URL(data.url).origin === 'https://checkout.stripe.com') window.location.assign(data.url); client.invalidateQueries({ queryKey: ['orders'] }); setCancel(null) } })
+  return <div className="page section-band"><p className="eyebrow">FROM OUR SHELVES TO YOUR DOOR</p><h1 className="page-heading">Your orders</h1>{params.get('payment') && <p role="status" className="notice mt-6">{params.get('payment') === 'success' ? 'Stripe confirmation is being processed. Your order status updates here.' : 'Payment not completed. You can retry or cancel below.'}</p>}<QueryState query={query} empty={query.data?.orders.length === 0} message="Your first order is waiting to happen." /><div className="space-y-6 mt-8">{query.data?.orders.map((order) => <article className="order-card" key={order._id}><div className="flex flex-wrap justify-between gap-4"><div><h2 className="text-base">Order #{order._id.slice(-8).toUpperCase()}</h2><p className="muted text-sm mt-2">{new Date(order.createdAt).toLocaleDateString()} · {order.paymentMethod.toUpperCase()}</p></div><div className="flex gap-4 items-center"><Badge status={order.orderStatus} /><strong className="price">{money(order.total)}</strong></div></div><OrderTimeline order={order} /><Badge status={order.paymentStatus}>Payment: {order.paymentStatus}</Badge><details className="mt-4"><summary>Order details</summary><div className="py-4 space-y-4">{order.items.map((item, index) => <p key={index} className="flex justify-between text-sm gap-4"><span>{item.quantity} × {item.name}</span><span>{money(item.price * item.quantity)}</span></p>)}<p className="muted text-sm">{order.address.fullName}, {order.address.line1}, {order.address.city}, {order.address.country}</p></div></details>{order.paymentMethod === 'stripe' && order.paymentStatus === 'pending' && order.orderStatus !== 'cancelled' && <div className="flex flex-wrap gap-4 mt-4"><Button variant="accent" loading={action.isPending} onClick={() => action.mutate({ id: order._id })}>Pay with Stripe</Button><Button variant="ghost" onClick={() => setCancel(order._id)}>Cancel payment</Button></div>}</article>)}</div><Pagination pagination={query.data?.pagination} onPage={(page) => setParams({ page: String(page) })} />{cancel && <Modal title="Cancel this payment?" onClose={() => setCancel(null)}><p className="muted mb-6">The checkout session will be closed and its stock reservation released.</p><div className="flex flex-wrap gap-4"><Button variant="ghost" onClick={() => setCancel(null)}>Keep order</Button><Button variant="accent" loading={action.isPending} onClick={() => action.mutate({ id: cancel, cancel: true })}>Confirm cancellation</Button></div></Modal>}</div>
+}
